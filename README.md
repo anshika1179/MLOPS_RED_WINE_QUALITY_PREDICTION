@@ -6,6 +6,8 @@
 
 A complete **MLOps pipeline** for predicting red wine quality using machine learning. This project demonstrates end-to-end ML engineering with automated CI/CD, containerization, and cloud deployment.
 
+This repository now also includes **DVC (Data Version Control)** setup so the data pipeline, model artifacts, and metrics can be versioned and reproduced consistently.
+
 ## 🎯 Live Demo
 **Try the app:** [https://wine-quality-predictor-01.onrender.com/](https://wine-quality-predictor-01.onrender.com/)
 
@@ -42,6 +44,7 @@ Enter wine characteristics and get instant quality predictions!
 - **CI/CD**: GitHub Actions
 - **Configuration**: YAML-based config management
 - **Logging**: Python logging with structured approach
+- **Data Versioning**: DVC pipeline and artifact tracking
 
 ## 🚀 Quick Start
 
@@ -66,6 +69,13 @@ conda activate wineqp
 ```bash
 pip install -r requirements.txt
 ```
+
+**Initialize DVC once per clone**
+```bash
+dvc init
+```
+
+If DVC is already initialized in the repository, skip this step.
 
 **Run the application**
 ```bash
@@ -101,6 +111,32 @@ The project follows a complete MLOps workflow:
 4. **CI/CD Pipeline**: Automated testing and deployment
 5. **Monitoring**: Logging and error handling
 
+### DVC Pipeline
+
+The project uses DVC to version and reproduce the ML workflow stages:
+
+1. Data ingestion
+2. Data validation
+3. Data transformation
+4. Model training
+5. Model evaluation
+
+After installing DVC, you can run:
+
+```bash
+dvc repro
+```
+
+Useful commands:
+
+```bash
+dvc dag
+dvc metrics show
+dvc status
+```
+
+The tracked outputs are stored under `artifacts/`, while the pipeline definition lives in `dvc.yaml`.
+
 ## 🚀 Deployment & CI/CD
 
 - **Automatic Deployment**: Push to `main` branch triggers deployment
@@ -122,6 +158,7 @@ The project follows a complete MLOps workflow:
 ├── templates/              # Web UI templates
 ├── static/                 # CSS, JS, images
 ├── .github/workflows/      # CI/CD pipeline
+├── dvc.yaml                # DVC pipeline definition
 ├── Dockerfile             # Container configuration
 ├── requirements.txt       # Python dependencies
 └── app.py                 # Flask web application

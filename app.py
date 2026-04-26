@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from mlProject.pipeline.prediction import PredictionPipeline
 from pathlib import Path
+import subprocess
 
 # Testing CI/CD pipeline
 app = Flask(__name__) # initializing a flask app
@@ -34,8 +35,22 @@ def homePage():
 
 @app.route('/train',methods=['GET'])  # route to train the pipeline
 def training():
-    os.system("python main.py")
-    return "Training Successful!" 
+    try:
+        result = subprocess.run(["python", "main.py"], capture_output=True, text=True)
+        training_success = result.returncode == 0
+        training_log = result.stdout if training_success else result.stderr or result.stdout
+
+        return render_template(
+            "train_status.html",
+            training_success=training_success,
+            training_log=training_log,
+        )
+    except Exception as e:
+        return render_template(
+            "train_status.html",
+            training_success=False,
+            training_log=str(e),
+        )
 
 
 @app.route('/predict',methods=['POST','GET']) # route to show the predictions in a web UI

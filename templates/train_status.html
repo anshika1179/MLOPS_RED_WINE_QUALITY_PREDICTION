@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Training status for the wine quality model." />
+    <title>Training Status</title>
+    <link rel="icon" type="image/x-icon" href="static/assets/favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet" />
+    <link href="static/css/app.css" rel="stylesheet" />
+    {% if training_success %}
+    <meta http-equiv="refresh" content="6; url=/" />
+    {% endif %}
+</head>
+<body>
+    <div class="page-bg" aria-hidden="true"></div>
+
+    <header class="topbar">
+        <a href="/" class="brand">Red Wine IQ</a>
+        <nav class="menu">
+            <a href="/">Home</a>
+            <a href="/#demo">Take Demo</a>
+        </nav>
+    </header>
+
+    <main class="container result-wrap reveal">
+        {% if training_success %}
+        <p class="status-pill success">Training Completed</p>
+        <h1>Your Model Was Retrained Successfully</h1>
+        <div class="result-card">
+            <p class="result-copy">You can now continue with a fresh prediction demo using the updated model artifacts.</p>
+        </div>
+        <p class="redirect-note">You will be redirected to Home automatically in 6 seconds.</p>
+        {% else %}
+        <p class="status-pill error">Training Failed</p>
+        <h1>Model Retraining Did Not Complete</h1>
+        <div class="result-card">
+            <p class="result-copy">Please review the error output below and try retraining again.</p>
+        </div>
+        {% endif %}
+
+        <div class="hero-actions">
+            <a class="btn btn-primary" href="/">Go To Home</a>
+            <a class="btn btn-ghost" href="/#demo">Try Demo</a>
+            <a class="btn btn-ghost" href="/train">Retrain Again</a>
+        </div>
+
+        {% if training_log %}
+        <details class="log-box">
+            <summary>View Training Logs</summary>
+            <pre>{{ training_log }}</pre>
+        </details>
+        {% endif %}
+    </main>
+
+    <footer class="footer">
+        <p>Clear status feedback is part of a better MLOps user experience.</p>
+    </footer>
+
+    <script src="static/js/scripts.js"></script>
+</body>
+</html>
