@@ -102,20 +102,25 @@ def index():
             pH = float(request.form['pH'])
             sulphates = float(request.form['sulphates'])
             alcohol = float(request.form['alcohol'])
-
-            data = [fixed_acidity, volatile_acidity, citric_acid, residual_sugar,
-                    chlorides, free_sulfur_dioxide, total_sulfur_dioxide,
-                    density, pH, sulphates, alcohol]
-            data = np.array(data).reshape(1, 11)
-
+       
+            data_list = [fixed_acidity, volatile_acidity, citric_acid, residual_sugar, 
+                         chlorides, free_sulfur_dioxide, total_sulfur_dioxide, density, pH, sulphates, alcohol]
+                    
+            data = np.array(data_list).reshape(1, 11)
             obj = PredictionPipeline()
             predict = obj.predict(data)
-            return render_template('results.html', prediction=str(predict))
+
+            final_prediction = round(float(predict[0]), 2)
+
+            return render_template('results.html', prediction=final_prediction)
+
         except Exception as e:
-            print('The Exception message is: ', e)
-            return 'something is wrong'
+            print('The Exception message is: ', e) 
+            return render_template('results.html', error_msg="Unable to compute prediction. Please ensure all fields are filled with valid numbers.")
+
     else:
         return render_template('index.html')
+
 
 if __name__ == "__main__":
     print("Starting Wine Quality Prediction App...")
