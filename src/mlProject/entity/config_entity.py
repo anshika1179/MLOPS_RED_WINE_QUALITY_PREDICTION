@@ -14,7 +14,7 @@ class DataIngestionConfig:
 class DataValidationConfig:
     root_dir: Path
     STATUS_FILE: Path
-    unzip_data_dir: Path
+    data_file: Path
     all_schema: dict
 
 @dataclass(frozen=True)

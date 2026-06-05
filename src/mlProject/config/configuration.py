@@ -49,14 +49,14 @@ class ConfigurationManager:
     def get_data_validation_config(self) -> DataValidationConfig:
         config = self.config.data_validation
         schema = self.schema.COLUMNS
-        self._validate_config_keys(config, ["root_dir", "STATUS_FILE", "unzip_data_dir"], "data_validation")
+        self._validate_config_keys(config, ["root_dir", "STATUS_FILE", "data_file"], "data_validation")
 
         create_directories([config.root_dir])
 
         data_validation_config = DataValidationConfig(
             root_dir=Path(config.root_dir),
             STATUS_FILE=Path(config.STATUS_FILE),
-            unzip_data_dir = Path(config.unzip_data_dir),
+            data_file = Path(config.data_file),
             all_schema=schema,
         )
 
