@@ -2,6 +2,7 @@ import pandas as pd
 import os
 from mlProject import logger
 from sklearn.linear_model import ElasticNet
+from sklearn.pipeline import Pipeline
 import joblib
 from pathlib import Path
 from mlProject.entity.config_entity import ModelTrainerConfig
@@ -75,5 +76,6 @@ class ModelTrainer:
         joblib.dump(lr, stable_path)
 
         logger.info(f"Model {version_id} trained and saved to {stable_path}")
+        logger.info(f"Train X shape: {train_x.shape}, Test X shape: {test_x.shape}")
 
         

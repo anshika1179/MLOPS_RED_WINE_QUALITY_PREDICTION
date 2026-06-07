@@ -57,6 +57,8 @@ class ModelEvaluation:
         scores = {"rmse": rmse, "mae": mae, "r2": r2}
         save_json(path=Path(self.config.metric_file_name), data=scores)
 
+        logger.info(f"Evaluation metrics saved: RMSE={rmse:.4f}, MAE={mae:.4f}, R2={r2:.4f}")
+
         registry_path = self.config.root_dir.parent / "model_registry.json"
         self._update_registry_with_metrics(registry_path, scores)
 
