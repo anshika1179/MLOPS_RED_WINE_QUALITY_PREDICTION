@@ -53,14 +53,17 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         self.n_features_in_ = len(NUMERIC_FEATURES)
 
     def fit(self, X, y=None):
-        cols = list(NUMERIC_FEATURES)
         if hasattr(X, 'columns'):
-            cols = list(X.columns)
-        self._validate_columns_exist(cols)
-        self._map_column_indices(cols)
+            self._resolve_indices_by_name(list(X.columns))
+        else:
+            if X.shape[1] < len(NUMERIC_FEATURES):
+                raise ValueError(
+                    f"Expected at least {len(NUMERIC_FEATURES)} features, got {X.shape[1]}"
+                )
+            self._resolve_indices_by_position()
         return self
 
-    def _validate_columns_exist(self, cols):
+    def _resolve_indices_by_name(self, cols):
         required = []
         if self.add_acidity_index:
             required.extend(["fixed acidity", "pH"])
@@ -74,8 +77,6 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                 f"Required columns missing for feature engineering: {missing}. "
                 f"Available columns: {cols}"
             )
-
-    def _map_column_indices(self, cols):
         if self.add_acidity_index:
             self._fixed_idx = cols.index("fixed acidity")
             self._ph_idx = cols.index("pH")
@@ -85,6 +86,18 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         if self.add_free_sulfur_pct:
             self._free_sulfur_idx = cols.index("free sulfur dioxide")
             self._total_sulfur_idx = cols.index("total sulfur dioxide")
+
+    def _resolve_indices_by_position(self):
+        idx_map = dict(zip(NUMERIC_FEATURES, range(len(NUMERIC_FEATURES))))
+        if self.add_acidity_index:
+            self._fixed_idx = idx_map["fixed acidity"]
+            self._ph_idx = idx_map["pH"]
+        if self.add_alcohol_sugar_ratio:
+            self._alcohol_idx = idx_map["alcohol"]
+            self._sugar_idx = idx_map["residual sugar"]
+        if self.add_free_sulfur_pct:
+            self._free_sulfur_idx = idx_map["free sulfur dioxide"]
+            self._total_sulfur_idx = idx_map["total sulfur dioxide"]
 
     def transform(self, X):
         X_arr = np.asarray(X, dtype=float)
