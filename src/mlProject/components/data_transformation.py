@@ -53,26 +53,57 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         self.n_features_in_ = len(NUMERIC_FEATURES)
 
     def fit(self, X, y=None):
+        cols = list(NUMERIC_FEATURES)
+        if hasattr(X, 'columns'):
+            cols = list(X.columns)
+        self._validate_columns_exist(cols)
+        self._map_column_indices(cols)
         return self
+
+    def _validate_columns_exist(self, cols):
+        required = []
+        if self.add_acidity_index:
+            required.extend(["fixed acidity", "pH"])
+        if self.add_alcohol_sugar_ratio:
+            required.extend(["alcohol", "residual sugar"])
+        if self.add_free_sulfur_pct:
+            required.extend(["free sulfur dioxide", "total sulfur dioxide"])
+        missing = [c for c in required if c not in cols]
+        if missing:
+            raise ValueError(
+                f"Required columns missing for feature engineering: {missing}. "
+                f"Available columns: {cols}"
+            )
+
+    def _map_column_indices(self, cols):
+        if self.add_acidity_index:
+            self._fixed_idx = cols.index("fixed acidity")
+            self._ph_idx = cols.index("pH")
+        if self.add_alcohol_sugar_ratio:
+            self._alcohol_idx = cols.index("alcohol")
+            self._sugar_idx = cols.index("residual sugar")
+        if self.add_free_sulfur_pct:
+            self._free_sulfur_idx = cols.index("free sulfur dioxide")
+            self._total_sulfur_idx = cols.index("total sulfur dioxide")
 
     def transform(self, X):
         X_arr = np.asarray(X, dtype=float)
         additional = []
-        if self.add_acidity_index and X_arr.shape[1] >= 9:
-            fixed = X_arr[:, 0]
-            ph = X_arr[:, 8]
+        if self.add_acidity_index:
+            fixed = X_arr[:, self._fixed_idx]
+            ph = X_arr[:, self._ph_idx]
             with np.errstate(divide='ignore', invalid='ignore'):
                 idx = np.where(ph > 0, fixed / ph, 0)
             additional.append(idx)
-        if self.add_alcohol_sugar_ratio and X_arr.shape[1] >= 11:
-            alcohol = X_arr[:, 10]
-            sugar = X_arr[:, 3]
+        if self.add_alcohol_sugar_ratio:
+            alcohol = X_arr[:, self._alcohol_idx]
+            sugar = X_arr[:, self._sugar_idx]
             with np.errstate(divide='ignore', invalid='ignore'):
                 ratio = np.where(sugar > 0, alcohol / sugar, 0)
             additional.append(ratio)
-        if self.add_free_sulfur_pct and X_arr.shape[1] >= 7:
-            free_sulfur = X_arr[:, 5]
-            total_sulfur = X_arr[:, 6]
+        if self.add_free_sulfur_pct:
+            free_sulfur = X_arr[:, self._free_sulfur_idx]
+            total_sulfur = X_arr[:, self._total_sulfur_idx]
             with np.errstate(divide='ignore', invalid='ignore'):
                 pct = np.where(total_sulfur > 0, free_sulfur / total_sulfur * 100, 0)
             additional.append(pct)
