@@ -153,6 +153,30 @@ def register_model(
     return entry
 
 
+def update_registration(
+    registry_path: Path,
+    version_id: str,
+    metrics: dict = None,
+    status: str = None,
+    model_path: Path = None,
+) -> bool:
+    """Update an existing registry entry's metrics, status, and/or model path."""
+    registry = load_registry(registry_path)
+    for v in registry.get("versions", []):
+        if v.get("id") == version_id:
+            if metrics is not None:
+                v["metrics"] = metrics
+            if status is not None:
+                v["status"] = status
+            if model_path is not None:
+                v["path"] = str(model_path)
+            v["updated_at"] = datetime.now(timezone.utc).isoformat()
+            save_registry(registry_path, registry)
+            logger.info(f"Updated registration for version {version_id}: metrics={metrics is not None}, status={status}")
+            return True
+    return False
+
+
 def get_production_model_path(registry_path: Path) -> Optional[Path]:
     """Get the production model path from the registry."""
     registry = load_registry(registry_path)

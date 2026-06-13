@@ -9,7 +9,7 @@ from mlProject import logger
 from mlProject.entity.config_entity import ModelEvaluationConfig
 from mlProject.utils.common import save_json
 from mlProject.utils.model_registry import (
-    load_registry, register_model,
+    load_registry, register_model, update_registration,
 )
 from mlProject.components.data_transformation import NUMERIC_FEATURES
 from pathlib import Path
@@ -132,14 +132,22 @@ class ModelEvaluation:
         params = model_info.get("params", {})
         data_hash = model_info.get("data_hash", "")
 
-        register_model(
+        updated = update_registration(
             registry_path=registry_path,
-            model_path=versioned_model_path,
             version_id=version_id,
             metrics=scores,
-            params=params,
-            data_hash=data_hash,
+            status="evaluated",
+            model_path=versioned_model_path,
         )
+        if not updated:
+            register_model(
+                registry_path=registry_path,
+                model_path=versioned_model_path,
+                version_id=version_id,
+                metrics=scores,
+                params=params,
+                data_hash=data_hash,
+            )
 
         previous_metrics = self._load_previous_metrics(registry_path)
         if previous_metrics:
