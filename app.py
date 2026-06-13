@@ -39,6 +39,14 @@ from mlProject.pipeline.prediction import PredictionPipeline
 from mlProject.utils.common import load_env_file, get_env_or_config
 from mlProject.utils.model_registry import load_registry, rollback_to_version
 
+
+def _get_registry_path() -> Path:
+    """Get the configured model registry path."""
+    try:
+        return ConfigurationManager().get_model_registry_config().registry_path
+    except Exception:
+        return Path("artifacts/model_registry.json")
+
 load_env_file()
 
 app = Flask(__name__)
@@ -342,7 +350,7 @@ def index():
 @require_admin_token
 def list_models():
     """List all registered model versions."""
-    registry_path = Path('artifacts/model_registry.json')
+    registry_path = _get_registry_path()
     registry = load_registry(registry_path)
     log_admin_action("list_models", f"versions_count={len(registry.get('versions', []))}")
     return jsonify(registry)
@@ -375,7 +383,7 @@ def rollback_model():
     version_id = request.json.get("version_id")
     if not version_id:
         return jsonify({"error": "version_id is required"}), 400
-    registry_path = Path('artifacts/model_registry.json')
+    registry_path = _get_registry_path()
     current_prod = get_current_production_version(registry_path)
     log_admin_action(
         "rollback_initiated",
@@ -393,7 +401,7 @@ def rollback_model():
 @require_admin_token
 def get_model_version(version_id):
     """View metadata for a specific version."""
-    registry_path = Path('artifacts/model_registry.json')
+    registry_path = _get_registry_path()
     registry = load_registry(registry_path)
     for v in registry.get("versions", []):
         if v.get("id") == version_id:
