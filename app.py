@@ -439,14 +439,18 @@ def _shutdown_handler(signum, frame):
     sys.exit(0)
 
 
+# ---------------------------------------------------------------------------
+# Startup initialisation — runs at import time so Gunicorn workers inherit
+# signal handlers and the model is trained before the first request.
+# ---------------------------------------------------------------------------
+signal.signal(signal.SIGTERM, _shutdown_handler)
+signal.signal(signal.SIGINT, _shutdown_handler)
+validate_config_at_startup()
+ensure_model_trained()
+
+
 if __name__ == "__main__":
-    signal.signal(signal.SIGTERM, _shutdown_handler)
-    signal.signal(signal.SIGINT, _shutdown_handler)
-
-    print("Starting Wine Quality Prediction App...")
-    validate_config_at_startup()
-    ensure_model_trained()
-
+    # Local development server (not used in Docker/Gunicorn production).
     # debug=True in production exposes an interactive shell - never do this.
     # Set FLASK_DEBUG=1 locally to enable the Werkzeug debugger.
     port = int(get_env_or_config(ENV_FLASK_PORT, "8080", transform=int))
