@@ -84,24 +84,10 @@ class ModelEvaluation:
         test_x = test_data.drop([self.config.target_column], axis=1)
         test_y = test_data[[self.config.target_column]]
 
-        preprocessor = None
-        if self.config.preprocessor_path and self.config.preprocessor_path.exists():
-            try:
-                preprocessor = joblib.load(self.config.preprocessor_path)
-                logger.info(f"Preprocessor loaded from {self.config.preprocessor_path}")
-            except Exception as e:
-                logger.warning(f"Could not load preprocessor: {e}")
+        # Select only raw NUMERIC_FEATURES — the model is a Pipeline whose first
+        # step is the preprocessor, so it expects the original 11 features.
+        test_x = test_x[NUMERIC_FEATURES]
 
-        if preprocessor is not None:
-            expected_cols = len(NUMERIC_FEATURES)
-            if test_x.shape[1] != expected_cols:
-                logger.warning(
-                    f"test_x has {test_x.shape[1]} columns but preprocessor "
-                    f"expects {expected_cols}. Selecting NUMERIC_FEATURES."
-                )
-                test_x = test_x[NUMERIC_FEATURES]
-            test_x = preprocessor.transform(test_x)
-        
         try:
             predicted_qualities = model.predict(test_x)
         except Exception as e:
