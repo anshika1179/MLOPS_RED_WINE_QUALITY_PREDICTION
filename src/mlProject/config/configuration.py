@@ -98,9 +98,10 @@ class ConfigurationManager:
         use_scaler = os.environ.get(ENV_USE_SCALER, "true").lower() in ("1", "true", "yes")
         scaler_type = os.environ.get(ENV_SCALER_TYPE, params.get("feature_scaling", {}).get("method", "standard"))
 
-        preprocessor_path = config.get("preprocessor_path", None)
-        if preprocessor_path is None:
-            preprocessor_path = Path(config.root_dir) / "preprocessor.joblib"
+        preprocessor_path = Path(config.get("preprocessor_path", str(Path(config.root_dir) / "preprocessor.joblib")))
+
+        min_samples_per_class = int(params.get("min_samples_per_class", 4))
+        enable_per_class_evaluation = str(params.get("enable_per_class_evaluation", "true")).lower() in ("1", "true", "yes")
 
         data_transformation_config = DataTransformationConfig(
             root_dir=Path(root_dir),
@@ -117,6 +118,8 @@ class ConfigurationManager:
             feature_engineering_flags=preproc.get("feature_engineering_flags", None),
             preprocessor_path=Path(preprocessor_path),
             use_scaler=self.params.Preprocessing.use_scaler,
+            min_samples_per_class=min_samples_per_class,
+            enable_per_class_evaluation=enable_per_class_evaluation,
         )
 
         return data_transformation_config
@@ -161,6 +164,9 @@ class ConfigurationManager:
         if preprocessor_path is None:
             preprocessor_path = str(Path(self.config.data_transformation.root_dir) / "preprocessor.joblib")
 
+        eval_params = self.params.get("ModelEvaluation", {})
+        per_class_r2_threshold = float(eval_params.get("per_class_r2_threshold", -0.5))
+
         model_evaluation_config = ModelEvaluationConfig(
             root_dir=Path(root_dir),
             test_data_path=Path(get_env_or_config(ENV_MODEL_EVALUATION_TEST_DATA_PATH, config.test_data_path)),
@@ -170,6 +176,7 @@ class ConfigurationManager:
             target_column=schema.name,
             preprocessor_path=Path(preprocessor_path),
             use_scaler=self.params.Preprocessing.use_scaler,
+            per_class_r2_threshold=per_class_r2_threshold,
         )
 
         return model_evaluation_config
