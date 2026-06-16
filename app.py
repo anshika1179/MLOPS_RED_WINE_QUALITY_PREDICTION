@@ -52,6 +52,9 @@ load_env_file()
 
 app = Flask(__name__)
 
+# Global pipeline instance — loaded once at startup to avoid per-request disk I/O
+pipeline = PredictionPipeline()
+
 # ---------------------------------------------------------------------------
 # Rate limiter - keyed on caller's IP
 # ---------------------------------------------------------------------------
@@ -340,8 +343,7 @@ def index():
                 density, pH, sulphates, alcohol,
             ]).reshape(1, 11)
 
-            obj = PredictionPipeline()
-            predict = obj.predict(data)
+            predict = pipeline.predict(data)
             final_prediction = round(float(predict[0]), 2)
 
             return render_template("results.html", prediction=final_prediction)
