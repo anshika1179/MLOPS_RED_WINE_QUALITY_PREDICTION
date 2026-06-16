@@ -131,6 +131,7 @@ class ModelEvaluation:
             quality_gate_max_rmse_degradation_pct=quality_gate,
             status="evaluated",
             model_path=versioned_model_path,
+            stable_model_path=self.config.model_path,
         )
         if not updated:
             register_model(
@@ -141,6 +142,7 @@ class ModelEvaluation:
                 params=params,
                 data_hash=data_hash,
                 quality_gate_max_rmse_degradation_pct=quality_gate,
+                stable_model_path=self.config.model_path,
             )
 
         previous_metrics = self._load_previous_metrics(registry_path)
