@@ -124,6 +124,44 @@ def _release_training_file_lock():
             _training_file_lock_fd = None
 
 
+_TRAINING_STATE_FILE = Path("artifacts/.training.state")
+
+
+def _read_training_state() -> dict:
+    """Read the shared training state file. Returns default state if missing."""
+    default = {"is_training": False, "started_at": None, "log": []}
+    try:
+        if _TRAINING_STATE_FILE.exists():
+            with open(_TRAINING_STATE_FILE, "r") as f:
+                state = json.load(f)
+            return {
+                "is_training": state.get("is_training", False),
+                "started_at": state.get("started_at"),
+                "log": state.get("log", []),
+            }
+    except Exception:
+        pass
+    return default
+
+
+def _write_training_state(is_training: bool, log_messages: list = None, started_at: float = None) -> None:
+    """Atomically write training state to the shared state file."""
+    _TRAINING_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    state = {
+        "is_training": is_training,
+        "started_at": started_at,
+        "log": (log_messages if log_messages is not None else list(training_log))[-MAX_LOG_LINES:],
+    }
+    tmp = _TRAINING_STATE_FILE.with_suffix(".state.tmp")
+    try:
+        with open(tmp, "w") as f:
+            json.dump(state, f)
+        tmp.replace(_TRAINING_STATE_FILE)
+    except Exception:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+
+
 
 # ---------------------------------------------------------------------------
 # Auth helper
@@ -227,6 +265,7 @@ def _run_training_in_background() -> None:
             pass
         return
     start_time = time.time()
+    _write_training_state(True, ["Training started..."], started_at=start_time)
     try:
         with _log_lock:
             training_log.append("Training started...")
@@ -251,14 +290,17 @@ def _run_training_in_background() -> None:
             else:
                 training_log.append("Training failed!")
                 training_log.append(stderr or stdout)
+        _write_training_state(False, list(training_log), started_at=start_time)
     except subprocess.TimeoutExpired:
         with _log_lock:
             training_log.append(
                 f"Training timed out after {TRAIN_TIMEOUT}s"
             )
+        _write_training_state(False, list(training_log), started_at=start_time)
     except Exception as exc:
         with _log_lock:
             training_log.append(f"Training error: {exc}")
+        _write_training_state(False, list(training_log), started_at=start_time)
     finally:
         is_training = False
         _release_training_file_lock()
@@ -338,7 +380,8 @@ def homePage():
 @app.route("/health", methods=["GET"])
 def health():
     """Lightweight liveness probe for uptime monitors and load balancers."""
-    health_data = {"status": "ok", "is_training": is_training}
+    state = _read_training_state()
+    health_data = {"status": "ok", "is_training": state["is_training"]}
     try:
         registry_path = _get_registry_path()
         registry = load_registry(registry_path)
@@ -382,7 +425,10 @@ def training():
     with _log_lock:
         training_log.clear()
 
-    # 4 - Submit to ThreadPoolExecutor (reuses worker thread, avoids thread leak)
+    # 4 - Write shared state so all workers see training is active
+    _write_training_state(True, [], started_at=time.time())
+
+    # 5 - Submit to ThreadPoolExecutor (reuses worker thread, avoids thread leak)
     _train_executor.submit(_run_training_in_background)
 
     return render_template(
@@ -399,13 +445,11 @@ def training_status():
     if not _verify_train_token():
         abort(401)
 
-    with _log_lock:
-        log_snapshot = list(training_log)
-
+    state = _read_training_state()
 
     return jsonify({
-        "is_training": is_training,
-        "log": log_snapshot,
+        "is_training": state["is_training"],
+        "log": state["log"],
     })
 
 
