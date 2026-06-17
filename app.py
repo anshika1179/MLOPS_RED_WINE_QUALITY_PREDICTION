@@ -28,9 +28,10 @@ import threading
 import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+import io
 import numpy as np
 import pandas as pd
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request, Response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from pathlib import Path
@@ -403,6 +404,53 @@ def index():
             ), 500
     else:
         return render_template("index.html")
+
+
+@app.route("/predict/batch", methods=["POST"])
+@limiter.limit("10 per minute")
+def predict_batch():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+        
+    try:
+        # Read the uploaded CSV file
+        df = pd.read_csv(file)
+        
+        # Keep only the required features, ignoring any target columns if present
+        from mlProject.components.data_transformation import NUMERIC_FEATURES
+        
+        missing_cols = [col for col in NUMERIC_FEATURES if col not in df.columns]
+        if missing_cols:
+            return jsonify({"error": f"Missing required columns: {', '.join(missing_cols)}"}), 400
+            
+        test_x = df[NUMERIC_FEATURES]
+        
+        # Predict
+        predictions = pipeline.predict(test_x)
+        
+        # Append predictions
+        df['predicted_quality'] = np.round(predictions, 2)
+        
+        # Convert back to CSV
+        output = io.StringIO()
+        df.to_csv(output, index=False)
+        csv_data = output.getvalue()
+        
+        return Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment;filename=predictions.csv"}
+        )
+        
+    except pd.errors.EmptyDataError:
+        return jsonify({"error": "The uploaded CSV file is empty"}), 400
+    except Exception as e:
+        logger.error(f"Error in /predict/batch: {e}")
+        return jsonify({"error": f"An error occurred processing the file: {str(e)}"}), 500
 
 
 @app.route('/models', methods=['GET'])
