@@ -30,7 +30,7 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pandas as pd
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request, send_file
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from pathlib import Path
@@ -404,6 +404,15 @@ def index():
     else:
         return render_template("index.html")
 
+
+@app.route('/reports/drift', methods=['GET'])
+@require_admin_token
+def drift_report():
+    report_path = Path("artifacts/data_validation/drift_report.html")
+    if report_path.exists():
+        return send_file(report_path)
+    else:
+        return "Drift report not available.", 404
 
 @app.route('/models', methods=['GET'])
 @limiter.limit("30 per minute")

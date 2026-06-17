@@ -39,33 +39,51 @@ class SchemaValidator:
 
 
 class DriftDetector:
-    def __init__(self, threshold: float = 0.05):
+    def __init__(self, threshold: float = 0.05, root_dir: Path = None):
         self.threshold = threshold
+        self.root_dir = root_dir
 
     def detect(self, reference: pd.DataFrame, production: pd.DataFrame) -> tuple[bool, dict[str, float]]:
-        scores = {}
-        drift = False
-        common_cols = [c for c in reference.columns if c in production.columns and c != "quality"]
-        for col in common_cols:
-            ref_dtype = reference[col].dtype
-            if not pd.api.types.is_numeric_dtype(ref_dtype):
-                continue
-            ref_clean = reference[col].dropna()
-            prod_clean = production[col].dropna()
-            if len(ref_clean) == 0 or len(prod_clean) == 0:
-                continue
-            stat, p_value = ks_2samp(ref_clean, prod_clean)
-            scores[col] = round(p_value, 6)
-            if p_value < self.threshold:
-                drift = True
-        return drift, scores
+        try:
+            from evidently.report import Report
+            from evidently.metric_preset import DataDriftPreset
+            
+            ref_features = reference.drop(columns=["quality"], errors="ignore")
+            prod_features = production.drop(columns=["quality"], errors="ignore")
+            
+            report = Report(metrics=[
+                DataDriftPreset(stattest_threshold=self.threshold)
+            ])
+            
+            report.run(reference_data=ref_features, current_data=prod_features)
+            
+            if self.root_dir:
+                report_path = Path(self.root_dir) / "drift_report.html"
+                report.save_html(str(report_path))
+                logger.info(f"Evidently AI drift report saved to {report_path}")
+                
+            report_dict = report.as_dict()
+            dataset_drift = report_dict["metrics"][0]["result"]["dataset_drift"]
+            
+            scores = {}
+            drift_by_columns = report_dict["metrics"][0]["result"]["drift_by_columns"]
+            for col, metrics in drift_by_columns.items():
+                scores[col] = round(metrics.get("drift_score", 0), 6)
+                
+            return dataset_drift, scores
+        except ImportError:
+            logger.error("evidently library is not installed. Run: pip install evidently")
+            raise
+        except Exception as e:
+            logger.error(f"Evidently AI drift detection failed: {e}")
+            raise
 
 
 class DataValidator:
     def __init__(self, config: DataValidationConfig):
         self.config = config
         self.schema_validator = SchemaValidator(config.all_schema)
-        self.drift_detector = DriftDetector(config.drift_threshold)
+        self.drift_detector = DriftDetector(config.drift_threshold, config.root_dir)
 
     def run(self) -> ValidationResult:
         try:
