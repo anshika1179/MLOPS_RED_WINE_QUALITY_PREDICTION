@@ -86,6 +86,21 @@ class ModelTrainer:
                 raise
 
         version_id = get_version_id()
+        
+        # Generate SHAP Explainer
+        try:
+            import shap
+            # Sample background data to avoid slow explainer initialization
+            background_data = train_x.sample(min(100, len(train_x)), random_state=42)
+            explainer = shap.Explainer(unified_pipeline.predict, background_data)
+            explainer_path = os.path.join(self.config.root_dir, f"explainer.joblib")
+            with tempfile.NamedTemporaryFile(dir=self.config.root_dir, suffix='.joblib', delete=False) as tmp:
+                tmp_explainer_path = tmp.name
+                joblib.dump(explainer, tmp_explainer_path)
+            os.replace(tmp_explainer_path, explainer_path)
+            logger.info(f"SHAP explainer generated and saved to {explainer_path}")
+        except Exception as e:
+            logger.warning(f"Failed to generate SHAP explainer: {e}")
         model_filename = f"model_{version_id}.joblib"
         model_path_str = os.path.join(self.config.root_dir, model_filename)
         try:

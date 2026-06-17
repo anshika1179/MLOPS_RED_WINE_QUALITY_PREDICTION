@@ -384,7 +384,29 @@ def index():
             predict = pipeline.predict(data)
             final_prediction = round(float(predict[0]), 2)
 
-            return render_template("results.html", prediction=final_prediction)
+            plot_url = None
+            try:
+                import shap
+                import matplotlib
+                matplotlib.use('Agg')
+                import matplotlib.pyplot as plt
+                import base64
+                import io
+
+                shap_values = pipeline.explain(data)
+                if shap_values is not None:
+                    plt.clf()
+                    # waterfall plot requires a single Explanation object
+                    shap.plots.waterfall(shap_values[0], show=False)
+                    buf = io.BytesIO()
+                    plt.savefig(buf, format="png", bbox_inches='tight', dpi=150)
+                    buf.seek(0)
+                    plot_url = base64.b64encode(buf.getvalue()).decode("utf-8")
+                    plt.close()
+            except Exception as e:
+                logger.error(f"Failed to generate SHAP plot: {e}")
+
+            return render_template("results.html", prediction=final_prediction, plot_url=plot_url)
 
         except ValueError as exc:
             logger.error(f"Validation error in /predict: {exc}")
