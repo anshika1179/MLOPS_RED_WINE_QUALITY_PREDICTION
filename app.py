@@ -28,8 +28,10 @@ import threading
 import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
 import numpy as np
 import pandas as pd
+import portalocker
 from flask import Flask, abort, jsonify, render_template, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -76,6 +78,7 @@ limiter = Limiter(
 # - _log_lock protects all reads/writes to training_log
 # - ThreadPoolExecutor(max_workers=1) replaces raw thread creation
 # - Timeout mechanism auto-releases lock if training exceeds TRAIN_TIMEOUT
+# - _training_file_lock_path provides cross-process exclusion for DVC/CLI path
 # ---------------------------------------------------------------------------
 _training_lock = threading.Lock()
 _log_lock = threading.Lock()
@@ -86,6 +89,39 @@ _train_executor = ThreadPoolExecutor(max_workers=1)
 _training_process = None
 _training_process_lock = threading.Lock()
 TRAIN_TIMEOUT = int(os.environ.get("TRAIN_TIMEOUT", "1800"))  # default 30 min
+
+_TRAINING_LOCK_FILE = Path("artifacts/.train.lock")
+_training_file_lock_fd = None
+_training_file_lock_lock = threading.Lock()
+
+
+def _acquire_training_file_lock() -> bool:
+    """Acquire a cross-process file lock for training. Returns True if acquired."""
+    global _training_file_lock_fd
+    with _training_file_lock_lock:
+        if _training_file_lock_fd is not None:
+            return False
+        _TRAINING_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            fd = open(_TRAINING_LOCK_FILE, "w")
+            portalocker.lock(fd, portalocker.LOCK_EX | portalocker.LOCK_NB)
+            _training_file_lock_fd = fd
+            return True
+        except (IOError, portalocker.LockException):
+            return False
+
+
+def _release_training_file_lock():
+    """Release the cross-process training file lock."""
+    global _training_file_lock_fd
+    with _training_file_lock_lock:
+        if _training_file_lock_fd is not None:
+            try:
+                portalocker.unlock(_training_file_lock_fd)
+                _training_file_lock_fd.close()
+            except Exception:
+                pass
+            _training_file_lock_fd = None
 
 
 
@@ -182,12 +218,20 @@ def validate_config_at_startup() -> None:
 def _run_training_in_background() -> None:
     """Subprocess-based training; releases _training_lock when done."""
     global is_training, _training_process
+    if not _acquire_training_file_lock():
+        with _log_lock:
+            training_log.append("Training rejected: another process is already training")
+        try:
+            _training_lock.release()
+        except RuntimeError:
+            pass
+        return
     start_time = time.time()
     try:
         with _log_lock:
             training_log.append("Training started...")
         proc = subprocess.Popen(
-            ["python", "main.py"],
+            [sys.executable, "main.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -217,6 +261,7 @@ def _run_training_in_background() -> None:
             training_log.append(f"Training error: {exc}")
     finally:
         is_training = False
+        _release_training_file_lock()
         with _training_process_lock:
             _training_process = None
         try:
@@ -235,10 +280,13 @@ def ensure_model_trained() -> None:
         model_path = Path("artifacts/model_trainer/model.joblib")
 
     if not model_path.exists():
+        if not _acquire_training_file_lock():
+            print("Auto-training skipped: another process is already training")
+            return
         print("Model not found - starting automatic training...")
         try:
             result = subprocess.run(
-                ["python", "main.py"],
+                [sys.executable, "main.py"],
                 capture_output=True,
                 text=True,
                 timeout=300,
@@ -249,6 +297,8 @@ def ensure_model_trained() -> None:
                 print(f"Auto-training failed:\n{result.stderr}")
         except Exception as exc:
             print(f"Auto-training failed: {exc}")
+        finally:
+            _release_training_file_lock()
     else:
         from mlProject.utils.common import verify_model_integrity
         from mlProject.utils.model_registry import load_registry
@@ -375,6 +425,30 @@ def index():
             sulphates            = float(request.form["sulphates"])
             alcohol              = float(request.form["alcohol"])
 
+            # Boundary validation checks
+            if fixed_acidity <= 0:
+                raise ValueError("Fixed Acidity must be positive.")
+            if volatile_acidity <= 0:
+                raise ValueError("Volatile Acidity must be positive.")
+            if citric_acid < 0:
+                raise ValueError("Citric Acid must be non-negative.")
+            if residual_sugar <= 0:
+                raise ValueError("Residual Sugar must be positive.")
+            if chlorides < 0:
+                raise ValueError("Chlorides must be non-negative.")
+            if free_sulfur_dioxide < 0:
+                raise ValueError("Free Sulfur Dioxide must be non-negative.")
+            if total_sulfur_dioxide < 0:
+                raise ValueError("Total Sulfur Dioxide must be non-negative.")
+            if density <= 0:
+                raise ValueError("Density must be positive.")
+            if not (0 < pH < 14):
+                raise ValueError("pH must be between 0 and 14.")
+            if sulphates < 0:
+                raise ValueError("Sulphates must be non-negative.")
+            if alcohol <= 0:
+                raise ValueError("Alcohol must be positive.")
+
             data = np.array([
                 fixed_acidity, volatile_acidity, citric_acid, residual_sugar,
                 chlorides, free_sulfur_dioxide, total_sulfur_dioxide,
@@ -390,10 +464,7 @@ def index():
             logger.error(f"Validation error in /predict: {exc}")
             return render_template(
                 "results.html",
-                error_msg=(
-                    "Unable to compute prediction. "
-                    "Please ensure all fields are filled with valid numbers."
-                ),
+                error_msg=f"Validation error: {exc}",
             ), 400
         except Exception as exc:
             logger.error(f"Unexpected error in /predict: {exc}")
@@ -469,6 +540,44 @@ def get_model_version(version_id):
             return jsonify(v)
     log_admin_action("get_model_version", f"version_{version_id}_not_found")
     return jsonify({"error": f"Version {version_id} not found"}), 404
+
+
+@app.route('/mlflow', methods=['GET'])
+def mlflow_ui():
+    """Redirect to MLflow Tracking UI if configured."""
+    try:
+        config_manager = ConfigurationManager()
+        registry_config = config_manager.get_model_registry_config()
+        if not registry_config.use_mlflow:
+            return jsonify({
+                "message": "MLflow is not enabled. Set use_mlflow: true in config.yaml or ENV_MLFLOW_USE_MLFLOW=true.",
+                "enabled": False,
+            })
+        tracking_uri = registry_config.mlflow_tracking_uri
+        parsed = urlparse(tracking_uri)
+        is_local = parsed.scheme == "" or parsed.scheme == "file"
+        if is_local:
+            return jsonify({
+                "message": "MLflow tracking URI is local. Run 'mlflow ui' in your terminal, then visit http://localhost:5000.",
+                "enabled": True,
+                "tracking_uri": tracking_uri,
+                "mlflow_ui_command": "mlflow ui",
+                "local_ui_url": "http://localhost:5000",
+                "experiment_name": registry_config.mlflow_experiment_name,
+                "model_name": registry_config.mlflow_model_name,
+            })
+        return jsonify({
+            "message": "MLflow Tracking Server configured",
+            "enabled": True,
+            "tracking_uri": tracking_uri,
+            "experiment_name": registry_config.mlflow_experiment_name,
+            "model_name": registry_config.mlflow_model_name,
+        })
+    except Exception as e:
+        return jsonify({
+            "message": f"Failed to read MLflow configuration: {str(e)}",
+            "enabled": False,
+        }), 500
 
 
 # ---------------------------------------------------------------------------
