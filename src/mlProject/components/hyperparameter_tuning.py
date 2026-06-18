@@ -34,18 +34,6 @@ class HyperparameterTuner:
         else:
             train_x_preprocessed = train_x.values
 
-        def objective(trial):
-            alpha = trial.suggest_float("alpha", 0.001, 2.0, log=True)
-            l1_ratio = trial.suggest_float("l1_ratio", 0.0, 1.0)
-
-            model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, random_state=42)
-            # Minimize RMSE (since cross_val_score returns negative RMSE)
-            scores = cross_val_score(model, train_x_preprocessed, train_y, cv=5, scoring='neg_root_mean_squared_error')
-            rmse = -1 * scores.mean()
-            return rmse
-
-        logger.info(f"Starting hyperparameter tuning with {self.config.n_trials} trials")
-        
         try:
             from optuna.integration.mlflow import MLflowCallback
             # By default it logs to the active MLflow experiment
@@ -55,8 +43,36 @@ class HyperparameterTuner:
             )
             callbacks = [mlflow_callback]
         except ImportError:
+            mlflow_callback = None
             logger.warning("optuna.integration.mlflow not available, skipping MLflow callback")
             callbacks = []
+
+        def objective(trial):
+            alpha = trial.suggest_float("alpha", self.config.alpha_min, self.config.alpha_max, log=True)
+            l1_ratio = trial.suggest_float("l1_ratio", self.config.l1_ratio_min, self.config.l1_ratio_max)
+
+            model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, random_state=42)
+            
+            from sklearn.model_selection import cross_validate
+            scoring = {
+                'rmse': 'neg_root_mean_squared_error',
+                'r2': 'r2'
+            }
+            # Calculate RMSE and R2 via cross-validation
+            cv_results = cross_validate(model, train_x_preprocessed, train_y, cv=5, scoring=scoring)
+            
+            rmse = -1 * cv_results['test_rmse'].mean()
+            r2 = cv_results['test_r2'].mean()
+            
+            if mlflow.active_run():
+                mlflow.log_metric("r2", r2)
+                
+            return rmse
+
+        if mlflow_callback:
+            objective = mlflow_callback.track_in_mlflow()(objective)
+
+        logger.info(f"Starting hyperparameter tuning with {self.config.n_trials} trials")
 
         study = optuna.create_study(direction="minimize")
         study.optimize(objective, n_trials=self.config.n_trials, callbacks=callbacks)

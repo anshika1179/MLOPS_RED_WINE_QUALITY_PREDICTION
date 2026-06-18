@@ -127,6 +127,7 @@ class ConfigurationManager:
     def get_hyperparameter_tuning_config(self) -> HyperparameterTuningConfig:
         config = self.config.hyperparameter_tuning
         schema = self.schema.TARGET_COLUMN
+        tuning_params = self.params.get("HyperparameterTuning", {})
         self._validate_config_keys(config, ["root_dir"], "hyperparameter_tuning")
 
         root_dir = get_env_or_config("ENV_HYPERPARAMETER_TUNING_ROOT_DIR", config.root_dir)
@@ -136,7 +137,11 @@ class ConfigurationManager:
         if preprocessor_path is None:
             preprocessor_path = str(Path(self.config.data_transformation.root_dir) / "preprocessor.joblib")
 
-        n_trials = int(config.get("n_trials", 20))
+        n_trials = int(tuning_params.get("n_trials", config.get("n_trials", 20)))
+        alpha_min = float(tuning_params.get("alpha_min", 0.001))
+        alpha_max = float(tuning_params.get("alpha_max", 2.0))
+        l1_ratio_min = float(tuning_params.get("l1_ratio_min", 0.0))
+        l1_ratio_max = float(tuning_params.get("l1_ratio_max", 1.0))
 
         return HyperparameterTuningConfig(
             root_dir=Path(root_dir),
@@ -146,6 +151,10 @@ class ConfigurationManager:
             preprocessor_path=Path(preprocessor_path),
             use_scaler=self.params.Preprocessing.use_scaler,
             n_trials=n_trials,
+            alpha_min=alpha_min,
+            alpha_max=alpha_max,
+            l1_ratio_min=l1_ratio_min,
+            l1_ratio_max=l1_ratio_max,
         )
 
     def get_model_trainer_config(self) -> ModelTrainerConfig:

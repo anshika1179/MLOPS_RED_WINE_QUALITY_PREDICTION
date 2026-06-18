@@ -53,6 +53,10 @@ class HyperparameterTuningConfig:
     preprocessor_path: Optional[Path] = None
     use_scaler: bool = True
     n_trials: int = 20
+    alpha_min: float = 0.001
+    alpha_max: float = 2.0
+    l1_ratio_min: float = 0.0
+    l1_ratio_max: float = 1.0
 
 @dataclass(frozen=True)
 class ModelTrainerConfig:
