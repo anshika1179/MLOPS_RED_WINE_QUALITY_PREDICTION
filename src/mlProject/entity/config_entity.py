@@ -54,6 +54,7 @@ class ModelTrainerConfig:
     l1_ratio: float
     target_column: str
     preprocessor_path: Optional[Path] = None
+    use_scaler: bool = True
     override_root_dir: Optional[Path] = None
     override_alpha: Optional[float] = None
     override_l1_ratio: Optional[float] = None
@@ -67,6 +68,7 @@ class ModelEvaluationConfig:
     metric_file_name: Path
     target_column: str
     preprocessor_path: Optional[Path] = None
+    use_scaler: bool = True
     per_class_r2_threshold: float = -0.5
     override_root_dir: Optional[Path] = None
 
@@ -82,3 +84,11 @@ class ModelRegistryConfig:
     mlflow_experiment_name: str = "wine_quality_prediction"
     mlflow_registry_uri: str = ""
     mlflow_model_name: str = "WineQualityElasticNet"
+
+@dataclass(frozen=True)
+class DataDriftConfig:
+    root_dir: Path
+    reference_data_path: Path
+    current_data_path: Path
+    report_path: Path
+    drift_share_threshold: float
