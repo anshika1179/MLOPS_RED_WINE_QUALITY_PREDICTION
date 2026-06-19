@@ -410,6 +410,7 @@ def training_status():
 
 
 @app.route("/predict", methods=["POST", "GET"])
+@limiter.limit("30 per minute")
 def index():
     if request.method == "POST":
         try:
