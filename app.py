@@ -42,7 +42,8 @@ from mlProject.pipeline.prediction import PredictionPipeline
 from mlProject import logger
 from mlProject.utils.common import load_env_file, get_env_or_config
 from mlProject.utils.model_registry import load_registry, rollback_to_version
-
+from prometheus_flask_exporter import PrometheusMetrics
+from prometheus_client import Histogram
 
 def _get_registry_path() -> Path:
     """Get the configured model registry path."""
@@ -54,6 +55,18 @@ def _get_registry_path() -> Path:
 load_env_file()
 
 app = Flask(__name__)
+
+# Initialize Prometheus Metrics
+metrics = PrometheusMetrics(app)
+
+# Static information as metric
+metrics.info('app_info', 'Application info', version='1.0.3')
+
+# Custom histogram for predicted quality
+wine_quality_metric = Histogram(
+    'predicted_wine_quality',
+    'Histogram of predicted wine quality scores'
+)
 
 # Global pipeline instance — loaded once at startup to avoid per-request disk I/O
 pipeline = PredictionPipeline()
@@ -457,6 +470,9 @@ def index():
 
             predict = pipeline.predict(data)
             final_prediction = round(float(predict[0]), 2)
+
+            # Observe the predicted quality score in Prometheus
+            wine_quality_metric.observe(final_prediction)
 
             return render_template("results.html", prediction=final_prediction)
 
