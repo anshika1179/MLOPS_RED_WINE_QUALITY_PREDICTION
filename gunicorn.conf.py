@@ -16,7 +16,9 @@ loglevel = os.environ.get("GUNICORN_LOGLEVEL", "info")
 def when_ready(server):
     """Called when the master process is ready — before forking workers.
     Uses a PID lock file to ensure only one master runs training.
+    Clears stale cross-worker training state before workers start.
     """
+    _clear_stale_training_state()
     lock_path = "/tmp/model_init.lock"
     status_path = "/tmp/model_init_done"
 
@@ -50,6 +52,16 @@ def when_ready(server):
     finally:
         if os.path.exists(lock_path):
             os.remove(lock_path)
+
+
+def _clear_stale_training_state():
+    """Remove any stale training state file left from a previous run."""
+    state_file = os.path.join("artifacts", ".training.state")
+    try:
+        if os.path.exists(state_file):
+            os.remove(state_file)
+    except Exception:
+        pass
 
 
 def _ensure_model_trained(server):
