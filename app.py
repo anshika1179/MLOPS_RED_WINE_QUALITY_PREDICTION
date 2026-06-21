@@ -44,6 +44,12 @@ from mlProject.utils.common import load_env_file, get_env_or_config
 from mlProject.utils.model_registry import load_registry, rollback_to_version
 from prometheus_flask_exporter import PrometheusMetrics
 from prometheus_client import Histogram
+from mlProject.components.security import create_token, decode_token, require_role, AuditLogger, USER_DB
+from mlProject.components.xai_explainer import XAIExplainer
+from mlProject.components.data_transformation import NUMERIC_FEATURES
+from mlProject.components.retraining import RetrainingEngine
+from mlProject.components.observability import APILogger, ObservabilityCollector
+from mlProject.utils.model_registry import update_registration
 
 def _get_registry_path() -> Path:
     """Get the configured model registry path."""
