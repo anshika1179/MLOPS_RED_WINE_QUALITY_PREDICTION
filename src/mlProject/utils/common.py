@@ -1,6 +1,7 @@
 import os
 import hashlib
 import zipfile
+from functools import lru_cache
 from box.exceptions import BoxValueError
 import yaml
 from mlProject import logger
@@ -17,7 +18,7 @@ def load_env_file(env_path: Path = None):
     """Load .env file from the given path or default .env in project root."""
     dotenv_path = env_path or Path(".env")
     if dotenv_path.exists():
-        load_dotenv(dotenv_path=dotenv_path, override=True)
+        load_dotenv(dotenv_path=dotenv_path)
         logger.info(f"Loaded environment from {dotenv_path}")
     else:
         logger.info("No .env file found, using system environment variables")
@@ -42,9 +43,15 @@ def get_env_or_config(env_var: str, config_value, transform=None):
 
 
 
+@lru_cache(maxsize=None)
 @ensure_annotations
 def read_yaml(path_to_yaml: Path) -> ConfigBox:
     """reads yaml file and returns
+
+    Config files are immutable for the process lifetime, so the parsed
+    result is cached per path to avoid re-reading and re-parsing on every
+    ConfigurationManager instantiation (e.g. the /health hot path).
+    Call read_yaml.cache_clear() to invalidate (used by tests).
 
     Args:
         path_to_yaml (str): path like input

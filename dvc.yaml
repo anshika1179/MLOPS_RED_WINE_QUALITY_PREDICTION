@@ -74,7 +74,7 @@ stages:
       - artifacts/data_transformation/preprocessor.joblib
       - artifacts/hyperparameter_tuning/best_params.json
     outs:
-      - artifacts/model_trainer/model.joblib
+      - artifacts/model_trainer/model_info.json
 
   model_evaluation:
     cmd: python src/mlProject/pipeline/stage_06_model_evaluation.py
@@ -89,6 +89,6 @@ stages:
       - schema.yaml
       - artifacts/data_transformation/test.csv
       - artifacts/data_transformation/preprocessor.joblib
-      - artifacts/model_trainer/model.joblib
+      - artifacts/model_trainer/model_info.json
     metrics:
       - artifacts/model_evaluation/metrics.json
