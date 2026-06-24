@@ -658,6 +658,8 @@ def analytics_export_pdf():
 @limiter.limit("30 per minute")
 def index():
     if request.method == "POST":
+        if request.content_type and "form" not in request.content_type and "urlencoded" not in request.content_type:
+            return render_template("results.html", error_msg="Only form-encoded data is supported. Use Content-Type: application/x-www-form-urlencoded."), 400
         try:
             fixed_acidity        = float(request.form["fixed_acidity"])
             volatile_acidity     = float(request.form["volatile_acidity"])
@@ -1070,5 +1072,9 @@ if __name__ == "__main__":
     # Set FLASK_DEBUG=1 locally to enable the Werkzeug debugger.
     port = int(get_env_or_config(ENV_FLASK_PORT, "8080", transform=int))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+
+    # Gunicorn handles this via gunicorn.conf.py; the dev server must do it
+    # itself so a fresh clone trains a model before the first /predict.
+    ensure_model_trained()
 
     app.run(host="0.0.0.0", port=port, debug=debug)

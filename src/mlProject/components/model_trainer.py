@@ -1,20 +1,6 @@
-import json
-import os
-import tempfile
-from pathlib import Path
+from sklearn.model_selection import cross_val_score
+from sklearn.ensemble import RandomForestRegressor
 import numpy as np
-import pandas as pd
-import joblib
-from mlProject import logger
-from mlProject.entity.config_entity import ModelTrainerConfig
-from mlProject.components.data_transformation import NUMERIC_FEATURES
-from mlProject.utils.mlflow_tracker import MlflowTracker
-from mlProject.utils.model_registry import get_version_id, compute_file_hash
-from sklearn.linear_model import ElasticNet
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from xgboost import XGBRegressor
-from sklearn.metrics import r2_score, mean_squared_error
-from sklearn.pipeline import Pipeline
 
 class ModelTrainer:
     def __init__(self, config: ModelTrainerConfig):
