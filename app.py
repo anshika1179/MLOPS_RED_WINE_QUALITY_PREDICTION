@@ -375,11 +375,12 @@ def ensure_model_trained() -> None:
             return
         print("Model not found - starting automatic training...")
         try:
+            train_timeout = int(os.environ.get("TRAIN_TIMEOUT", "1800"))
             result = subprocess.run(
                 [sys.executable, "main.py"],
                 capture_output=True,
                 text=True,
-                timeout=300,
+                timeout=train_timeout,
             )
             if result.returncode == 0:
                 print("Auto-training completed!")
@@ -657,6 +658,8 @@ def analytics_export_pdf():
 @limiter.limit("30 per minute")
 def index():
     if request.method == "POST":
+        if request.content_type and "form" not in request.content_type and "urlencoded" not in request.content_type:
+            return render_template("results.html", error_msg="Only form-encoded data is supported. Use Content-Type: application/x-www-form-urlencoded."), 400
         try:
             fixed_acidity        = float(request.form["fixed_acidity"])
             volatile_acidity     = float(request.form["volatile_acidity"])
@@ -832,7 +835,8 @@ def compare_models():
 @require_admin_token
 def rollback_model():
     """Rollback production alias to a specified version and restore the model file."""
-    version_id = request.json.get("version_id")
+    data = request.get_json(silent=True) or {}
+    version_id = data.get("version_id")
     if not version_id:
         return jsonify({"error": "version_id is required"}), 400
     registry_path = _get_registry_path()
@@ -1071,5 +1075,9 @@ if __name__ == "__main__":
     # Set FLASK_DEBUG=1 locally to enable the Werkzeug debugger.
     port = int(get_env_or_config(ENV_FLASK_PORT, "8080", transform=int))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+
+    # Gunicorn handles this via gunicorn.conf.py; the dev server must do it
+    # itself so a fresh clone trains a model before the first /predict.
+    ensure_model_trained()
 
     app.run(host="0.0.0.0", port=port, debug=debug)
