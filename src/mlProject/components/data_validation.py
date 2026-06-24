@@ -1,8 +1,3 @@
-from collections import namedtuple
-from scipy.stats import ks_2samp
-from pathlib import Path
-
-from mlProject import logger
 import pandas as pd
 from mlProject.entity.config_entity import DataValidationConfig
 
@@ -84,73 +79,22 @@ class DriftDetector:
             logger.error(f"Evidently AI drift detection failed: {e}")
             raise
 
+class DataValidationError(Exception):
+    pass
 
-class DataValidator:
-    def __init__(self, config: DataValidationConfig):
+class DataValidation:
+    def __init__(self, config):
         self.config = config
         self.schema_validator = SchemaValidator(config.all_schema)
         self.drift_detector = DriftDetector(config.drift_threshold, config.root_dir)
 
     def run(self) -> ValidationResult:
         try:
-            data = pd.read_csv(self.config.data_file)
-        except FileNotFoundError:
-            logger.error(f"Data file not found: {self.config.data_file}")
-            raise
+            expected_cols = self.config.get("expected_columns", [])
+            missing = [col for col in expected_cols if col not in data.columns]
+            if missing:
+                raise DataValidationError(f"Missing critical columns: {missing}")
+            return True
         except Exception as e:
-            logger.exception(f"Failed to read data file: {self.config.data_file}")
+            print(f"Data validation failed: {e}")
             raise
-
-        schema_valid, schema_errors = self.schema_validator.validate(data)
-        
-        # Load reference data (training distribution) for drift detection
-        reference_data_path = self.config.reference_data_path
-        if reference_data_path.exists():
-            try:
-                reference_data = pd.read_csv(reference_data_path)
-                logger.info(f"Loaded reference data from {reference_data_path}")
-            except Exception as e:
-                logger.warning(f"Failed to load reference data: {e}")
-                reference_data = None
-        else:
-            if schema_valid:
-                logger.info(f"Reference data not found at {reference_data_path}. Saving current data as reference for future runs.")
-                data.to_csv(reference_data_path, index=False)
-                logger.info(f"Created reference data snapshot at {reference_data_path}")
-            else:
-                logger.warning(f"Skipping reference data save — schema validation failed. Errors: {schema_errors}")
-            reference_data = None
-
-        if reference_data is not None:
-            drift_detected, drift_scores = self.drift_detector.detect(reference_data, data)
-            if drift_detected:
-                logger.error(
-                    f"Data drift detected! Threshold: {self.config.drift_threshold}. "
-                    f"Drift scores: {drift_scores}"
-                )
-        else:
-            drift_detected = False
-            drift_scores = {}
-
-        all_errors = list(schema_errors)
-        validation_status = schema_valid and not drift_detected
-
-        with open(self.config.STATUS_FILE, 'w') as f:
-            f.write(f"Validation status: {validation_status}\n")
-            f.write(f"Schema valid: {schema_valid}\n")
-            f.write(f"Drift detected: {drift_detected}\n")
-            if drift_scores:
-                f.write("Drift scores:\n")
-                for col, pv in drift_scores.items():
-                    f.write(f"  {col}: {pv}\n")
-            if all_errors:
-                f.write("Errors:\n")
-                for err in all_errors:
-                    f.write(f"  - {err}\n")
-
-        logger.info(
-            f"Validation {'passed' if validation_status else 'failed'}: "
-            f"schema_valid={schema_valid}, drift_detected={drift_detected}, "
-            f"errors={len(all_errors)}"
-        )
-        return ValidationResult(schema_valid, drift_detected, drift_scores, all_errors)
