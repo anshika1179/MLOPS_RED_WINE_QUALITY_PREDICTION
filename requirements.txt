@@ -25,3 +25,7 @@ xgboost==2.0.3
 reportlab==4.1.0
 scipy==1.10.1
 PyJWT==2.8.0
+pytest
+anyio
+Faker
+hydra-core
