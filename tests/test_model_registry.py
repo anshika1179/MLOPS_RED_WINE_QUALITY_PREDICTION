@@ -161,6 +161,9 @@ class TestModelRegistry(unittest.TestCase):
             (Path(tmp) / "model.joblib").write_text("weights")
             missing_path = Path(tmp) / "model_v002.joblib"
 
+            missing_path.write_text("weights")
+            (Path(str(missing_path) + ".sha256")).write_text("hash")
+
             register_model(
                 registry_path=registry_path,
                 model_path=existing_path,
@@ -175,6 +178,8 @@ class TestModelRegistry(unittest.TestCase):
                 metrics={"rmse": 0.6},
                 params={"alpha": 0.2},
             )
+
+            missing_path.unlink()
 
             issues = validate_registry(registry_path)
             self.assertTrue(any("v002" in issue for issue in issues))
