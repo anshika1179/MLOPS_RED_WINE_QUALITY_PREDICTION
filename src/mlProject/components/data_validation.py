@@ -1,5 +1,5 @@
 import pandas as pd
-
+from mlProject import logger
 class DataValidationError(Exception):
     pass
 
@@ -15,5 +15,5 @@ class DataValidation:
                 raise DataValidationError(f"Missing critical columns: {missing}")
             return True
         except Exception as e:
-            print(f"Data validation failed: {e}")
+            logger.error(f"Data validation failed: {e}")
             raise
