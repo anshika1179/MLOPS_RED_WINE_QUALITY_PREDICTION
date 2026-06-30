@@ -292,9 +292,9 @@ def validate_config_at_startup() -> None:
         if not Path(path).exists():
             missing.append(f"{desc} ({path})")
     if missing:
-        print(f"ERROR: Missing required configuration files: {', '.join(missing)}")
+        logger.error(f"ERROR: Missing required configuration files: {', '.join(missing)}")
         sys.exit(1)
-    print(f"Configuration validation passed. Environment: {os.environ.get(ENV_TAG, 'development')}")
+    logger.info(f"Configuration validation passed. Environment: {os.environ.get(ENV_TAG, 'development')}")
 
 
 # ---------------------------------------------------------------------------
@@ -371,9 +371,9 @@ def ensure_model_trained() -> None:
 
     if not model_path.exists():
         if not _acquire_training_file_lock():
-            print("Auto-training skipped: another process is already training")
+            logger.info("Auto-training skipped: another process is already training")
             return
-        print("Model not found - starting automatic training...")
+        logger.info("Model not found - starting automatic training...")
         try:
             train_timeout = int(os.environ.get("TRAIN_TIMEOUT", "1800"))
             result = subprocess.run(
@@ -383,11 +383,11 @@ def ensure_model_trained() -> None:
                 timeout=train_timeout,
             )
             if result.returncode == 0:
-                print("Auto-training completed!")
+                logger.info("Auto-training completed!")
             else:
-                print(f"Auto-training failed:\n{result.stderr}")
+                logger.error(f"Auto-training failed:\n{result.stderr}")
         except Exception as exc:
-            print(f"Auto-training failed: {exc}")
+            logger.error(f"Auto-training failed: {exc}")
         finally:
             _release_training_file_lock()
     else:
@@ -395,9 +395,9 @@ def ensure_model_trained() -> None:
         from mlProject.utils.model_registry import load_registry
         checksum_path = Path(str(model_path) + ".sha256")
         if not verify_model_integrity(model_path, checksum_path):
-            print("Model integrity check FAILED - consider retraining.")
+            logger.warning("Model integrity check FAILED - consider retraining.")
         else:
-            print("Model already exists - ready for predictions!")
+            logger.info("Model already exists - ready for predictions!")
         # Check if active model matches registry production version
         try:
             registry_path = _get_registry_path()
@@ -409,7 +409,7 @@ def ensure_model_trained() -> None:
                     model_info = json.load(f)
                 loaded_version = model_info.get("version_id")
                 if loaded_version and loaded_version != prod_id:
-                    print(
+                    logger.warning(
                         f"WARNING: Active model version {loaded_version} does not match "
                         f"registry production version {prod_id}."
                     )
@@ -1014,11 +1014,11 @@ def api_analytics():
 # ---------------------------------------------------------------------------
 def _shutdown_handler(signum, frame):
     """Clean up training subprocess on shutdown signals."""
-    print(f"Received signal {signum}, shutting down...")
+    logger.info(f"Received signal {signum}, shutting down...")
     global _training_process
     with _training_process_lock:
         if _training_process is not None:
-            print("Terminating training subprocess...")
+            logger.info("Terminating training subprocess...")
             _training_process.terminate()
     sys.exit(0)
 
