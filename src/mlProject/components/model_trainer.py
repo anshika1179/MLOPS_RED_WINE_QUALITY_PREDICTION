@@ -1,6 +1,7 @@
 from sklearn.model_selection import cross_val_score
 from sklearn.ensemble import RandomForestRegressor
 import numpy as np
+from mlProject import logger
 
 class ModelTrainer:
     def __init__(self, config: ModelTrainerConfig):

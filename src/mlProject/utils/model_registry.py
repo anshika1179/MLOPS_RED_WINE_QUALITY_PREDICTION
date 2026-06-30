@@ -29,9 +29,16 @@ def _lock_registry(registry_path: Path):
     """Acquire an exclusive lock on the registry file."""
     registry_path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = registry_path.with_suffix(registry_path.suffix + ".lock")
-    lock_file = open(lock_path, "w")
-    portalocker.lock(lock_file, portalocker.LOCK_EX)
-    return lock_file
+
+    lock_file = None
+    try:
+        lock_file = open(lock_path, "w")
+        portalocker.lock(lock_file, portalocker.LOCK_EX)
+        return lock_file
+    except Exception:
+        if lock_file is not None:
+            lock_file.close()
+        raise
 
 
 def _unlock_registry(lock_file):
